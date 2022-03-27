@@ -31,13 +31,14 @@ namespace EnsekCodingTest.Controllers
 
         [HttpPost]
         [Route("meter-reading-uploads")]
-        public IActionResult AddCsvFileToDb()
+        public IActionResult AddCsvFileToDb(IFormFile uploadFile)
         {
+            string[] response = new string[2];
             try
             {
                 if (ModelState.IsValid)
                 {
-                    _repo.CheckMeterReadings();
+                    response = _repo.CheckMeterReadings(uploadFile);
                 }
                 else
                 {
@@ -48,7 +49,7 @@ namespace EnsekCodingTest.Controllers
             {
                 _logger.LogError(e, e.Message, null);
             }
-            return Created("Records inserted successfully", null);
+            return Created($"Records inserted successfully , Success Entries: {response[0]},Failed Entries: {response[1]}", null);
         }
 
         [HttpGet]

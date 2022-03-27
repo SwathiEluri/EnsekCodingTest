@@ -1,4 +1,6 @@
 ﻿using EnsekCodingTest.Models;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.FileProviders;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -25,32 +27,63 @@ namespace EnsekCodingTest.Repository
         /// This method is used to store the valid data from CSV file to MeterReading Database table
         /// </summary>
 
-        public void CheckMeterReadings()
+        public string[] CheckMeterReadings(IFormFile uploadFile)
         {
-            var readingCsvTable = new DataTable();
-            using (var csvReader = new LumenWorks.Framework.IO.Csv.CsvReader(new StreamReader(@"CSVFiles\Meter_Reading.csv"), true))
+            string fileName = string.Empty;
+            string filePathname = string.Empty;
+            var count = new Response();
+            string[] responeMessage = new string[2];
+
+            if (uploadFile != null)
             {
-                readingCsvTable.Load(csvReader);
-            }
-            for (int i = 0; i < readingCsvTable.Rows.Count; i++)
-            {
-                var meterReading = new MeterReading();
-                meterReading.AccountId = Convert.ToInt32(readingCsvTable.Rows[i][0]);
-                meterReading.MeterReadingDateTime = DateTime.ParseExact(readingCsvTable.Rows[i][1].ToString(), "dd/MM/yyyy HH:mm", null);
-
-                meterReading.MeterReadValue = readingCsvTable.Rows[i][2].ToString();
-
-                // Reading.MeterReadingDateTime = _context.MeterReadings.OrderByDescending(p => p.MeterReadingDateTime).FirstOrDefault();
-
-                if (_context.TestAccounts.FirstOrDefault(t => t.AccountId == meterReading.AccountId) != null
-                     && (meterReading.MeterReadValue != string.Empty) && meterReading.MeterReadValue.Length <= 5
-                     && meterReading.MeterReadingDateTime.ToString() != string.Empty)
+                if (uploadFile.Length > 0)
                 {
-                    _context.MeterReadings.Add(meterReading);
+                    //Loading file name
+                    fileName = Path.GetFileName(uploadFile.FileName);
+
+                    //File path
+                    filePathname = new PhysicalFileProvider(Path.Combine(Directory.GetCurrentDirectory(), "CSVFiles")).Root + $@"\{fileName}";
+
+                    using (FileStream fs = System.IO.File.Create(filePathname))
+                    {
+                        uploadFile.CopyTo(fs);
+                        fs.Flush();
+                    }
+                    var readingCsvTable = new DataTable();
+                    using (var csvReader = new LumenWorks.Framework.IO.Csv.CsvReader(new StreamReader(System.IO.File.OpenRead(filePathname)), true))
+                    {
+                        readingCsvTable.Load(csvReader);
+                    }
+
+
+                    for (int i = 0; i < readingCsvTable.Rows.Count; i++)
+                    {
+                        var meterReading = new MeterReading();
+                        meterReading.AccountId = Convert.ToInt32(readingCsvTable.Rows[i][0]);
+                        meterReading.MeterReadingDateTime = DateTime.ParseExact(readingCsvTable.Rows[i][1].ToString(), "dd/MM/yyyy HH:mm", null);
+
+                        meterReading.MeterReadValue = readingCsvTable.Rows[i][2].ToString();
+
+                        // Reading.MeterReadingDateTime = _context.MeterReadings.OrderByDescending(p => p.MeterReadingDateTime).FirstOrDefault();
+
+                        if (_context.TestAccounts.FirstOrDefault(t => t.AccountId == meterReading.AccountId) != null
+                             && (meterReading.MeterReadValue != string.Empty) && meterReading.MeterReadValue.Length <= 5
+                             && meterReading.MeterReadingDateTime.ToString() != string.Empty)
+                        {
+                            _context.MeterReadings.Add(meterReading);
+                            count.Success++;
+                        }
+                        else
+                            count.Fail++;
+                    }
+                    _context.SaveChanges();
+                    responeMessage[0] = count.Success.ToString();
+                    responeMessage[1] = count.Fail.ToString();
                 }
-                _context.SaveChanges();
             }
+            return responeMessage;
         }
+
 
         /// <summary>
         /// This method is used to get all the TestAccount deatils from the Database
